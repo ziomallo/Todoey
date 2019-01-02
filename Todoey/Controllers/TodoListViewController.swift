@@ -8,8 +8,9 @@
 
 import UIKit
 import CoreData
+import ChameleonFramework
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: SwipeTableViewController {
 
     var selectedCategory : Category? {
         didSet {
@@ -17,16 +18,31 @@ class TodoListViewController: UITableViewController {
         }
     }
     
+    @IBOutlet weak var searchBar: UISearchBar!
+    
     var itemArray = [Item]()
     let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
-
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        
+        title = selectedCategory?.name
+        
+        guard let navBar = navigationController?.navigationBar else {
+            fatalError("No navbar")
+        }
+        
+        navBar.barTintColor = UIColor(hexString: selectedCategory?.color)
+        navBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor : ContrastColorOf(backgroundColor: UIColor(hexString: selectedCategory?.color), returnFlat: true)]
+        navBar.tintColor = ContrastColorOf(backgroundColor: UIColor(hexString: selectedCategory?.color), returnFlat: true)
+        
+        searchBar.barTintColor = UIColor(hexString: selectedCategory?.color)
+    }
+    
     //MARK: - TableView datasource methods
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -34,8 +50,11 @@ class TodoListViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         
+        cell.backgroundColor = UIColor(hexString: selectedCategory?.color)?.darken(byPercentage: CGFloat(indexPath.row) / CGFloat(itemArray.count * 4))
+        cell.textLabel?.textColor = ContrastColorOf(backgroundColor: cell.backgroundColor!, returnFlat: true)
+        cell.tintColor = ContrastColorOf(backgroundColor: cell.backgroundColor!, returnFlat: true)
         cell.textLabel?.text = itemArray[indexPath.row].title
         cell.accessoryType = itemArray[indexPath.row].done ? .checkmark : .none
         
@@ -81,17 +100,18 @@ class TodoListViewController: UITableViewController {
         present(alert, animated: true, completion: nil)
     }
     
-    //MARK: - Model saving an loading methods
+    //MARK: - Model manipulation methods
     
-    func saveItems() {
+    func saveItems(doReloadTableView : Bool = true ) {
         
         do {
            try context.save()
         } catch {
             print("Error saving context \(error)")
         }
-        
-        tableView.reloadData()
+        if doReloadTableView {
+            tableView.reloadData()
+        }
     }
     
     func loadItems(_ request : NSFetchRequest<Item> = Item.fetchRequest(),_ predicate : NSPredicate? = nil) {
@@ -110,6 +130,12 @@ class TodoListViewController: UITableViewController {
             print("Error loading context \(error)")
         }
         tableView.reloadData()
+    }
+    
+    override func updateModel(_ indexPath: IndexPath) {
+        context.delete(itemArray[indexPath.row])
+        itemArray.remove(at: indexPath.row)
+        saveItems(doReloadTableView: false)
     }
 }
 
